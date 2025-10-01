@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Print Total Calculator</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+      background: #f8f8f8;
+    }
+    h2 {
+      color: #333;
+    }
+    #fileInput {
+      margin: 10px 0;
+    }
+    #output {
+      margin-top: 20px;
+      padding: 10px;
+      background: #fff;
+      border: 1px solid #ccc;
+      height: 300px;
+      overflow-y: scroll;
+      white-space: pre-wrap;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <h2>Print Total Calculator</h2>
+  <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" />
+  <div id="output">Results will appear here...</div>
+
+  <script>
+    // Convert Excel column letters to 0-based index
+    function colLetterToIndex(letter) {
+      letter = letter.toUpperCase();
+      let result = 0;
+      for (let i = 0; i < letter.length; i++) {
+        result = result * 26 + (letter.charCodeAt(i) - 64);
+      }
+      return result - 1;
+    }
+
+    const formulaColumns = {
+      'I': 0.2,
+      'N': 0.1,
+      'O': 0.2,
+      'S': 0.1,
+      'X': 0.1,
+      'T': 0.1,
+      'V': 0.1,
+      'AA': 0.4
+    };
+
+    const accountColLetter = 'E';
+
+    document.getElementById('fileInput').addEventListener('change', function (e) {
+      const file = e.target.files[0];
+      const output = document.getElementById('output');
+      output.textContent = 'Processing file...';
+
+      if (!file) {
+        output.textContent = 'No file selected.';
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const sheet = workbook.Sheets[sheetName];
+          const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+          let results = [];
+          for (let i = 1; i < json.length; i++) {
+            const row = json[i];
+            const accountName = row[colLetterToIndex(accountColLetter)] || "Unknown";
+
+            let total = 0;
+            for (const [colLetter, weight] of Object.entries(formulaColumns)) {
+              const idx = colLetterToIndex(colLetter);
+              const val = parseFloat(row[idx]) || 0;
+              total += val * weight;
+            }
+
+            if (total > 0) {
+              results.push({ accountName, total });
+            }
+          }
+
+          if (results.length > 0) {
+            let outputText = `Account Name                  Total ($)\n`;
+            outputText += '---------------------------------------------\n';
+            results.forEach(r => {
+              const name = (r.accountName + '').padEnd(30, ' ');
+              outputText += `${name} $${r.total.toFixed(2)}\n`;
+            });
+            output.textContent = outputText;
+          } else {
+            output.textContent = 'No accounts with total > $0.00';
+          }
+        } catch (err) {
+          output.textContent = 'Error reading file: ' + err.message;
+        }
+      };
+
+      reader.readAsArrayBuffer(file);
+    });
+  </script>
+</body>
+</html>
